@@ -9,14 +9,14 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from './ui/button';
 import { ScrollArea } from './ui/scroll-area';
-import { Help } from 'lucide-react';
+import { HelpCircle } from 'lucide-react';
 
 const GameGuide = () => {
   return (
     <Dialog>
       <DialogTrigger asChild>
         <Button variant="outline" size="icon">
-          <Help className="h-5 w-5" />
+          <HelpCircle className="h-5 w-5" />
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl">
