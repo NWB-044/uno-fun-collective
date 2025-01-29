@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { Card as CardType, GameState, Player } from '../types/game';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Card as CardType, GameState, Player, PlayerStatus } from '../types/game';
 import Card from './Card';
 import { createDeck, dealCards, isValidPlay } from '../utils/gameUtils';
 import { Button } from './ui/button';
 import { toast } from '@/hooks/use-toast';
 import GameGuide from './GameGuide';
 import EmojiPicker from './EmojiPicker';
+import { Progress } from './ui/progress';
+
+const TURN_TIME_LIMIT = 60000; // 1 minute in milliseconds
 
 interface GameProps {
   roomId: string;
@@ -13,9 +16,10 @@ interface GameProps {
   currentPlayer: Player;
   onGameEnd?: (winner: string) => void;
   onEmojiSend?: (emoji: string, playerId: string) => void;
+  onPlayerStatusChange?: (playerId: string, status: PlayerStatus) => void;
 }
 
-const Game = ({ roomId, players, currentPlayer, onGameEnd, onEmojiSend }: GameProps) => {
+const Game = ({ roomId, players, currentPlayer, onGameEnd, onEmojiSend, onPlayerStatusChange }: GameProps) => {
   const [gameState, setGameState] = useState<GameState>({
     players,
     currentPlayer: 0,
@@ -25,7 +29,33 @@ const Game = ({ roomId, players, currentPlayer, onGameEnd, onEmojiSend }: GamePr
     currentColor: 'red',
     gameStarted: false,
     winner: null,
+    turnTimeLimit: TURN_TIME_LIMIT,
   });
+  const [timeRemaining, setTimeRemaining] = useState(TURN_TIME_LIMIT);
+
+  const handleTurnTimeout = useCallback(() => {
+    const currentPlayerId = gameState.players[gameState.currentPlayer].id;
+    
+    // Mark player as out
+    if (onPlayerStatusChange) {
+      onPlayerStatusChange(currentPlayerId, 'out');
+    }
+    
+    // Move to next player
+    let nextPlayerIndex = (gameState.currentPlayer + gameState.direction) % players.length;
+    if (nextPlayerIndex < 0) nextPlayerIndex = players.length - 1;
+
+    setGameState(prev => ({
+      ...prev,
+      currentPlayer: nextPlayerIndex,
+      turnStartTime: Date.now(),
+      players: prev.players.map((p, i) => ({
+        ...p,
+        isCurrentTurn: i === nextPlayerIndex,
+        status: p.id === currentPlayerId ? 'out' : p.status,
+      })),
+    }));
+  }, [gameState.currentPlayer, gameState.direction, gameState.players, onPlayerStatusChange]);
 
   useEffect(() => {
     if (!gameState.gameStarted) {
@@ -33,9 +63,32 @@ const Game = ({ roomId, players, currentPlayer, onGameEnd, onEmojiSend }: GamePr
     }
   }, []);
 
+  useEffect(() => {
+    if (gameState.gameStarted && !gameState.winner) {
+      const interval = setInterval(() => {
+        const elapsed = Date.now() - (gameState.turnStartTime || Date.now());
+        const remaining = Math.max(0, TURN_TIME_LIMIT - elapsed);
+        setTimeRemaining(remaining);
+        
+        if (remaining === 0) {
+          handleTurnTimeout();
+        }
+      }, 100);
+
+      return () => clearInterval(interval);
+    }
+  }, [gameState.gameStarted, gameState.turnStartTime, gameState.winner, handleTurnTimeout]);
+
   const startGame = () => {
     const deck = createDeck();
     const activePlayers = players.filter(p => !p.isSpectator);
+    
+    // Randomly assign turn order
+    const shuffledPlayers = [...activePlayers].sort(() => Math.random() - 0.5);
+    shuffledPlayers.forEach((player, index) => {
+      player.turnOrder = index;
+    });
+    
     const { playerHands, remainingDeck } = dealCards(deck, activePlayers.length);
     
     const initialDiscardPile = [remainingDeck.pop()!];
@@ -47,10 +100,13 @@ const Game = ({ roomId, players, currentPlayer, onGameEnd, onEmojiSend }: GamePr
       discardPile: initialDiscardPile,
       currentColor: initialColor,
       gameStarted: true,
+      turnStartTime: Date.now(),
       players: players.map((player, index) => ({
         ...player,
-        cards: player.isSpectator ? [] : playerHands[activePlayers.findIndex(p => p.id === player.id)],
-        isCurrentTurn: index === 0 && !player.isSpectator,
+        cards: player.isSpectator ? [] : playerHands[shuffledPlayers.findIndex(p => p.id === player.id)],
+        isCurrentTurn: shuffledPlayers[0].id === player.id && !player.isSpectator,
+        status: player.isSpectator ? 'spectator' : 'active',
+        turnOrder: shuffledPlayers.find(p => p.id === player.id)?.turnOrder,
       })),
     }));
   };
@@ -169,7 +225,6 @@ const Game = ({ roomId, players, currentPlayer, onGameEnd, onEmojiSend }: GamePr
   return (
     <div className="min-h-screen bg-gray-100 p-4">
       <div className="max-w-7xl mx-auto">
-        {/* Game controls */}
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-2">
             <GameGuide />
@@ -182,35 +237,45 @@ const Game = ({ roomId, players, currentPlayer, onGameEnd, onEmojiSend }: GamePr
                 : `Current player: ${gameState.players[gameState.currentPlayer]?.name}`}
             </h2>
             <p className="text-lg">Current color: {gameState.currentColor}</p>
+            {!gameState.winner && (
+              <div className="mt-2">
+                <Progress value={(timeRemaining / TURN_TIME_LIMIT) * 100} />
+                <p className="text-sm mt-1">Time remaining: {Math.ceil(timeRemaining / 1000)}s</p>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Discard pile */}
         <div className="flex justify-center mb-8">
           {gameState.discardPile.length > 0 && (
             <Card card={gameState.discardPile[gameState.discardPile.length - 1]} />
           )}
         </div>
 
-        {/* Player hands */}
         <div className="space-y-8">
           {gameState.players.map((player) => (
             <div key={player.id} className="bg-white rounded-lg p-4 shadow">
-              <h3 className="text-xl font-bold mb-2">
-                {player.name}
-                {player.isSpectator && ' (Spectator)'}
-              </h3>
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="text-xl font-bold">
+                  {player.name}
+                  {player.status === 'spectator' && ' (Spectator)'}
+                  {player.status === 'out' && ' (Out)'}
+                </h3>
+                {player.turnOrder !== undefined && (
+                  <span className="text-sm text-gray-500">Turn order: #{player.turnOrder + 1}</span>
+                )}
+              </div>
               <div className="flex flex-wrap gap-2">
                 {player.cards.map((card) => (
                   <Card
                     key={card.id}
                     card={card}
-                    isPlayable={player.isCurrentTurn && player.id === currentPlayer.id}
+                    isPlayable={player.isCurrentTurn && player.id === currentPlayer.id && player.status === 'active'}
                     onClick={() => handleCardPlay(player.id, card)}
                   />
                 ))}
               </div>
-              {player.isCurrentTurn && player.id === currentPlayer.id && !player.isSpectator && (
+              {player.isCurrentTurn && player.id === currentPlayer.id && player.status === 'active' && (
                 <Button
                   className="mt-4"
                   onClick={() => handleDrawCard(player.id)}

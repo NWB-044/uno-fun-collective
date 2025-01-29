@@ -8,6 +8,8 @@ export interface Card {
   value?: number;
 }
 
+export type PlayerStatus = 'active' | 'out' | 'spectator';
+
 export interface Player {
   id: string;
   name: string;
@@ -15,6 +17,9 @@ export interface Player {
   isCurrentTurn: boolean;
   isReady?: boolean;
   isSpectator?: boolean;
+  status: PlayerStatus;
+  turnOrder?: number;
+  lastActive?: number;
 }
 
 export interface GameState {
@@ -26,6 +31,8 @@ export interface GameState {
   currentColor: CardColor;
   gameStarted: boolean;
   winner: string | null;
+  turnStartTime?: number;
+  turnTimeLimit: number;
 }
 
 export interface GameRoom {
