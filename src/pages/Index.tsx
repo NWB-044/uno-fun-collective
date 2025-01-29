@@ -3,27 +3,27 @@ import Game from '../components/Game';
 import { Player } from '../types/game';
 import PlayerNameInput from '../components/PlayerNameInput';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useLocalUser } from '@/hooks/useLocalUser';
 
-// Create a client
 const queryClient = new QueryClient();
 
 const Index = () => {
   const [players, setPlayers] = useState<Player[]>([]);
   const [gameStarted, setGameStarted] = useState(false);
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
+  const { user, logout } = useLocalUser();
 
   const handlePlayerJoin = (name: string) => {
     const newPlayer: Player = {
-      id: `player-${players.length + 1}`,
+      id: user?.id || `player-${players.length + 1}`,
       name,
       cards: [],
       isCurrentTurn: false,
       isReady: false,
       isSpectator: gameStarted,
-      status: gameStarted ? 'spectator' : 'active', // Add the status property
+      status: gameStarted ? 'spectator' : 'active',
       turnOrder: undefined,
       lastActive: Date.now(),
     };
@@ -91,7 +91,20 @@ const Index = () => {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
-          <h1 className="text-3xl font-bold text-center mb-6">UNO Game Lobby</h1>
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-3xl font-bold">UNO Game Lobby</h1>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                logout();
+                setCurrentPlayer(null);
+                setPlayers([]);
+              }}
+            >
+              Change Name
+            </Button>
+          </div>
           
           <div className="space-y-4">
             <div className="mt-4">
