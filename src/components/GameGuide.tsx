@@ -9,14 +9,14 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from './ui/button';
 import { ScrollArea } from './ui/scroll-area';
-import { QuestionMarkCircle } from 'lucide-react';
+import { Help } from 'lucide-react';
 
 const GameGuide = () => {
   return (
     <Dialog>
       <DialogTrigger asChild>
         <Button variant="outline" size="icon">
-          <QuestionMarkCircle className="h-5 w-5" />
+          <Help className="h-5 w-5" />
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl">
