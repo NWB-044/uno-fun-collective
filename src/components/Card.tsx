@@ -46,20 +46,53 @@ const Card = ({ card, isPlayable = false, onClick, className }: CardProps) => {
     }
   };
 
+  const getTextColor = () => {
+    switch (card.color) {
+      case 'black':
+        return 'text-white';
+      default:
+        return 'text-white';
+    }
+  };
+
   return (
     <div
       className={cn(
-        'relative w-24 h-36 rounded-xl shadow-lg cursor-pointer transform transition-transform duration-200',
+        'relative w-24 h-36 rounded-xl shadow-lg cursor-pointer transform transition-all duration-300',
         getBackgroundColor(),
-        isPlayable && 'hover:animate-card-hover',
+        isPlayable && 'hover:scale-110 hover:-translate-y-2',
+        'border-2 border-white',
         className
       )}
       onClick={isPlayable ? onClick : undefined}
     >
-      <div className="absolute inset-2 bg-white rounded-lg flex items-center justify-center">
+      {/* Card Border Design */}
+      <div className="absolute inset-1 rounded-lg border-2 border-white/30" />
+      
+      {/* Card Inner Content */}
+      <div className="absolute inset-3 rounded-lg bg-white/10 flex flex-col items-center justify-center">
+        {/* Top Number/Symbol */}
         <span className={cn(
-          'text-4xl font-bold',
-          `text-${card.color === 'black' ? 'black' : card.color}`
+          'text-4xl font-bold mb-2',
+          getTextColor()
+        )}>
+          {getCardContent()}
+        </span>
+        
+        {/* Center Logo for special cards */}
+        {card.type !== 'number' && (
+          <div className={cn(
+            'text-6xl transform -rotate-45',
+            getTextColor()
+          )}>
+            {getCardContent()}
+          </div>
+        )}
+        
+        {/* Bottom Number/Symbol (inverted) */}
+        <span className={cn(
+          'text-4xl font-bold mt-2 transform rotate-180',
+          getTextColor()
         )}>
           {getCardContent()}
         </span>
