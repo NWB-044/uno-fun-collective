@@ -13,6 +13,8 @@ export interface Player {
   name: string;
   cards: Card[];
   isCurrentTurn: boolean;
+  isReady?: boolean;
+  isSpectator?: boolean;
 }
 
 export interface GameState {

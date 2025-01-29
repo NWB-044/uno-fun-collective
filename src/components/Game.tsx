@@ -3,15 +3,19 @@ import { Card as CardType, GameState, Player } from '../types/game';
 import Card from './Card';
 import { createDeck, dealCards, isValidPlay } from '../utils/gameUtils';
 import { Button } from './ui/button';
-import { toast } from './ui/use-toast';
+import { toast } from '@/hooks/use-toast';
+import GameGuide from './GameGuide';
+import EmojiPicker from './EmojiPicker';
 
 interface GameProps {
   roomId: string;
   players: Player[];
+  currentPlayer: Player;
   onGameEnd?: (winner: string) => void;
+  onEmojiSend?: (emoji: string, playerId: string) => void;
 }
 
-const Game = ({ roomId, players, onGameEnd }: GameProps) => {
+const Game = ({ roomId, players, currentPlayer, onGameEnd, onEmojiSend }: GameProps) => {
   const [gameState, setGameState] = useState<GameState>({
     players,
     currentPlayer: 0,
@@ -31,7 +35,8 @@ const Game = ({ roomId, players, onGameEnd }: GameProps) => {
 
   const startGame = () => {
     const deck = createDeck();
-    const { playerHands, remainingDeck } = dealCards(deck, players.length);
+    const activePlayers = players.filter(p => !p.isSpectator);
+    const { playerHands, remainingDeck } = dealCards(deck, activePlayers.length);
     
     const initialDiscardPile = [remainingDeck.pop()!];
     const initialColor = initialDiscardPile[0].color === 'black' ? 'red' : initialDiscardPile[0].color;
@@ -44,8 +49,8 @@ const Game = ({ roomId, players, onGameEnd }: GameProps) => {
       gameStarted: true,
       players: players.map((player, index) => ({
         ...player,
-        cards: playerHands[index],
-        isCurrentTurn: index === 0,
+        cards: player.isSpectator ? [] : playerHands[activePlayers.findIndex(p => p.id === player.id)],
+        isCurrentTurn: index === 0 && !player.isSpectator,
       })),
     }));
   };
@@ -164,14 +169,20 @@ const Game = ({ roomId, players, onGameEnd }: GameProps) => {
   return (
     <div className="min-h-screen bg-gray-100 p-4">
       <div className="max-w-7xl mx-auto">
-        {/* Game status */}
-        <div className="mb-4 text-center">
-          <h2 className="text-2xl font-bold">
-            {gameState.winner 
-              ? `Player ${gameState.winner} wins!`
-              : `Current player: ${gameState.players[gameState.currentPlayer]?.name}`}
-          </h2>
-          <p className="text-lg">Current color: {gameState.currentColor}</p>
+        {/* Game controls */}
+        <div className="flex justify-between items-center mb-4">
+          <div className="flex items-center gap-2">
+            <GameGuide />
+            <EmojiPicker onEmojiSelect={(emoji) => onEmojiSend?.(emoji, currentPlayer.id)} />
+          </div>
+          <div className="text-center">
+            <h2 className="text-2xl font-bold">
+              {gameState.winner 
+                ? `${gameState.players.find(p => p.id === gameState.winner)?.name} wins!`
+                : `Current player: ${gameState.players[gameState.currentPlayer]?.name}`}
+            </h2>
+            <p className="text-lg">Current color: {gameState.currentColor}</p>
+          </div>
         </div>
 
         {/* Discard pile */}
@@ -185,18 +196,21 @@ const Game = ({ roomId, players, onGameEnd }: GameProps) => {
         <div className="space-y-8">
           {gameState.players.map((player) => (
             <div key={player.id} className="bg-white rounded-lg p-4 shadow">
-              <h3 className="text-xl font-bold mb-2">{player.name}</h3>
+              <h3 className="text-xl font-bold mb-2">
+                {player.name}
+                {player.isSpectator && ' (Spectator)'}
+              </h3>
               <div className="flex flex-wrap gap-2">
                 {player.cards.map((card) => (
                   <Card
                     key={card.id}
                     card={card}
-                    isPlayable={player.isCurrentTurn}
+                    isPlayable={player.isCurrentTurn && player.id === currentPlayer.id}
                     onClick={() => handleCardPlay(player.id, card)}
                   />
                 ))}
               </div>
-              {player.isCurrentTurn && (
+              {player.isCurrentTurn && player.id === currentPlayer.id && !player.isSpectator && (
                 <Button
                   className="mt-4"
                   onClick={() => handleDrawCard(player.id)}
