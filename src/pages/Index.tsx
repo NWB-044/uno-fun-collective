@@ -5,6 +5,10 @@ import PlayerNameInput from '../components/PlayerNameInput';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+// Create a client
+const queryClient = new QueryClient();
 
 const Index = () => {
   const [players, setPlayers] = useState<Player[]>([]);
@@ -19,6 +23,9 @@ const Index = () => {
       isCurrentTurn: false,
       isReady: false,
       isSpectator: gameStarted,
+      status: gameStarted ? 'spectator' : 'active', // Add the status property
+      turnOrder: undefined,
+      lastActive: Date.now(),
     };
 
     setCurrentPlayer(newPlayer);
@@ -54,63 +61,76 @@ const Index = () => {
     setGameStarted(true);
   };
 
-  if (!currentPlayer) {
-    return <PlayerNameInput onSubmit={handlePlayerJoin} />;
-  }
+  const content = () => {
+    if (!currentPlayer) {
+      return <PlayerNameInput onSubmit={handlePlayerJoin} />;
+    }
 
-  if (gameStarted) {
+    if (gameStarted) {
+      return (
+        <Game
+          roomId="local-game"
+          players={players}
+          currentPlayer={currentPlayer}
+          onGameEnd={handleGameEnd}
+          onEmojiSend={(emoji: string, playerId: string) => {
+            toast({
+              title: `${players.find(p => p.id === playerId)?.name} says:`,
+              description: emoji,
+            });
+          }}
+          onPlayerStatusChange={(playerId: string, status: 'active' | 'out' | 'spectator') => {
+            setPlayers(prev => prev.map(p => 
+              p.id === playerId ? { ...p, status } : p
+            ));
+          }}
+        />
+      );
+    }
+
     return (
-      <Game
-        roomId="local-game"
-        players={players}
-        currentPlayer={currentPlayer}
-        onGameEnd={handleGameEnd}
-        onEmojiSend={(emoji: string, playerId: string) => {
-          toast({
-            title: `${players.find(p => p.id === playerId)?.name} says:`,
-            description: emoji,
-          });
-        }}
-      />
-    );
-  }
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
+          <h1 className="text-3xl font-bold text-center mb-6">UNO Game Lobby</h1>
+          
+          <div className="space-y-4">
+            <div className="mt-4">
+              <h2 className="text-xl font-semibold mb-2">Players:</h2>
+              <ul className="space-y-2">
+                {players.map((player) => (
+                  <li key={player.id} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                    <span>{player.name} {player.isSpectator ? '(Spectator)' : ''}</span>
+                    {!player.isSpectator && (
+                      <Button
+                        variant={player.isReady ? "default" : "outline"}
+                        onClick={() => handlePlayerReady(player.id)}
+                        disabled={player.id !== currentPlayer.id}
+                      >
+                        {player.isReady ? 'Ready!' : 'Ready?'}
+                      </Button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
 
-  return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-      <div className="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
-        <h1 className="text-3xl font-bold text-center mb-6">UNO Game Lobby</h1>
-        
-        <div className="space-y-4">
-          <div className="mt-4">
-            <h2 className="text-xl font-semibold mb-2">Players:</h2>
-            <ul className="space-y-2">
-              {players.map((player) => (
-                <li key={player.id} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                  <span>{player.name} {player.isSpectator ? '(Spectator)' : ''}</span>
-                  {!player.isSpectator && (
-                    <Button
-                      variant={player.isReady ? "default" : "outline"}
-                      onClick={() => handlePlayerReady(player.id)}
-                      disabled={player.id !== currentPlayer.id}
-                    >
-                      {player.isReady ? 'Ready!' : 'Ready?'}
-                    </Button>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <Button
+              className="w-full mt-4"
+              onClick={handleStartGame}
+              disabled={players.filter(p => !p.isSpectator && p.isReady).length < 2}
+            >
+              Start Game
+            </Button>
           </div>
-
-          <Button
-            className="w-full mt-4"
-            onClick={handleStartGame}
-            disabled={players.filter(p => !p.isSpectator && p.isReady).length < 2}
-          >
-            Start Game
-          </Button>
         </div>
       </div>
-    </div>
+    );
+  };
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      {content()}
+    </QueryClientProvider>
   );
 };
 
